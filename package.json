@@ -1,0 +1,17 @@
+{
+  "name": "zeroclaw-workspace",
+  "private": true,
+  "version": "0.3.1",
+  "type": "module",
+  "scripts": {
+    "dev": "pnpm --filter zeroclaw-desktop dev",
+    "dev:app": "pnpm --filter zeroclaw-app dev",
+    "build": "pnpm --filter zeroclaw-app build && pnpm --filter zeroclaw-desktop build",
+    "build:app": "pnpm --filter zeroclaw-app build",
+    "build:desktop": "pnpm --filter zeroclaw-desktop build",
+    "tauri": "pnpm --filter zeroclaw-desktop tauri",
+    "typecheck": "pnpm --filter zeroclaw-app typecheck && pnpm --filter zeroclaw-shared typecheck",
+    "generate-types": "bash scripts/generate-types.sh"
+  },
+  "packageManager": "pnpm@10.27.0"
+}

@@ -1,0 +1,40 @@
+[package]
+name = "zeroclaw-desktop"
+version = "0.3.1"
+description = "ZeroClaw Desktop Application"
+authors = ["ZeroClaw Labs"]
+edition = "2021"
+
+[lib]
+name = "zeroclaw_desktop"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[[bin]]
+name = "zeroclaw"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tauri = { version = "2", features = ["tray-icon", "image-png"] }
+tauri-plugin-shell = "2"
+tauri-plugin-opener = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-http = "2"
+tauri-plugin-process = "2"
+tokio = { version = "1", features = ["full"] }
+log = "0.4"
+env_logger = "0.11"
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+which = "8"
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true

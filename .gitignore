@@ -44,3 +44,21 @@ lcov.info
 
 # IDE's stuff
 .idea
+
+# Tauri / Frontend
+packages/app/dist
+packages/app/node_modules
+packages/desktop/node_modules
+packages/desktop/src-tauri/target
+packages/desktop/src-tauri/icons
+pnpm-lock.yaml
+node_modules
+
+# Tauri build artifacts
+*.app
+*.exe
+*.deb
+*.rpm
+*.AppImage
+*.msi
+*.dmg
