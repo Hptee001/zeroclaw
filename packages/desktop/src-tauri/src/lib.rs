@@ -34,13 +34,25 @@ pub fn run() {
             // Initialize system tray
             tray::init_tray(app.handle())?;
 
-            // Auto-start sidecar (ZeroClaw gateway) only if configured
-            let sidecar_manager = app.state::<Arc<Mutex<SidecarManager>>>();
+            // Initialize app_handle in AppState
+            let app_state = app.state::<Arc<Mutex<AppState>>>();
             let app_handle = app.handle().clone();
 
             // Clone the Arc for the async task
+            let sidecar_manager = app.state::<Arc<Mutex<SidecarManager>>>();
             let sidecar_manager = sidecar_manager.inner().clone();
 
+            // Clone app_handle for sidecar task
+            let app_handle_for_sidecar = app_handle.clone();
+
+            // Set app_handle in state - do this synchronously before spawning
+            {
+                let mut state = app_state.blocking_lock();
+                state.app_handle = Some(app_handle);
+                log::info!("App handle initialized in AppState");
+            }
+
+            // Start sidecar in async task
             tauri::async_runtime::spawn(async move {
                 // Check if auto-start is enabled
                 let should_start = {
@@ -60,10 +72,10 @@ pub fn run() {
                 if let Err(e) = manager.start().await {
                     log::error!("Failed to start sidecar: {}", e);
                     // Send error to frontend
-                    let _ = app_handle.emit("sidecar_error", format!("Failed to start gateway: {}", e));
+                    let _ = app_handle_for_sidecar.emit("sidecar_error", format!("Failed to start gateway: {}", e));
                 } else {
                     log::info!("Sidecar started successfully");
-                    let _ = app_handle.emit("sidecar_ready", ());
+                    let _ = app_handle_for_sidecar.emit("sidecar_ready", ());
                 }
             });
 

@@ -466,7 +466,7 @@ pub async fn stream_response(
 ) -> Result<(), String> {
     let mut state = state.lock().await;
 
-    // Add user message
+    // Add user message to state (don't emit event since frontend already added it optimistically)
     let user_msg = Message {
         id: Uuid::new_v4().to_string(),
         session_id: session_id.clone(),
@@ -477,9 +477,8 @@ pub async fn stream_response(
     };
     state.messages.push(user_msg.clone());
 
-    if let Some(handle) = &state.app_handle {
-        let _ = handle.emit("message_new", &user_msg);
-    }
+    // Don't emit message_new for user messages to avoid duplicates
+    // Frontend already adds user messages optimistically
 
     // Try to use real ZeroClaw gateway via WebSocket
     let gateway_url = "ws://127.0.0.1:37373/ws/chat";
@@ -595,8 +594,15 @@ pub async fn stream_response(
             };
             state.messages.push(assistant_msg.clone());
 
+            info!("About to emit message_new, app_handle exists: {}", state.app_handle.is_some());
             if let Some(handle) = &state.app_handle {
-                let _ = handle.emit("message_new", &assistant_msg);
+                info!("Emitting message_new event for message: {}", assistant_msg.id);
+                match handle.emit("message_new", &assistant_msg) {
+                    Ok(_) => info!("message_new event emitted successfully"),
+                    Err(e) => error!("Failed to emit message_new: {}", e),
+                }
+            } else {
+                warn!("app_handle is None, cannot emit message_new event");
             }
 
             // Send done signal

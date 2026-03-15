@@ -56,7 +56,9 @@ export function Chat() {
       // Cleanup event listeners
       unlistenFns.forEach(fn => fn())
     }
-  }, [currentSessionId, createSession, setupEventListeners])
+    // Only run on mount when there's no session - don't recreate on every render
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentSessionId]) // Only depend on currentSessionId, not on functions
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
