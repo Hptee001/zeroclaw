@@ -43,6 +43,8 @@ impl Default for SidecarConfig {
                         .unwrap_or_else(|| PathBuf::from("/tmp/zeroclaw-desktop"))
                         .to_string_lossy()
                 ),
+                // Allow gateway to start without API key (for development)
+                "--no-auth".to_string(),
             ],
         }
     }
