@@ -8,6 +8,7 @@ export interface ProviderConfig {
   base_url?: string
   model: string
   enabled: boolean
+  provider_type?: string  // For backend compatibility
 }
 
 export interface ChannelConfig {

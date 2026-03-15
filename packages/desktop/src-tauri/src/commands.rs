@@ -94,6 +94,13 @@ impl Default for AppState {
                     models: vec!["llama2".to_string()],
                     api_key_set: false,
                 },
+                Provider {
+                    provider_type: "zhipu".to_string(),
+                    name: "Zhipu AI".to_string(),
+                    enabled: false,
+                    models: vec!["glm-4".to_string()],
+                    api_key_set: false,
+                },
             ],
             usage: vec![],
             current_session_id: None,
@@ -142,8 +149,29 @@ pub async fn restart_gateway(_state: State<'_, Arc<Mutex<AppState>>>) -> Result<
 #[tauri::command]
 pub fn get_config(state: State<'_, Arc<Mutex<AppState>>>) -> Result<Config, String> {
     let state = state.blocking_lock();
-    // Return default config if none is set
-    Ok(state.config.clone())
+
+    // Convert providers to ProviderConfig format
+    let provider_configs: Vec<ProviderConfig> = state.providers.iter().map(|p| {
+        ProviderConfig {
+            provider_type: p.provider_type.clone(),
+            name: p.name.clone(),
+            api_key: if p.api_key_set { Some("*****".to_string()) } else { None },
+            base_url: None,
+            model: p.models.first().cloned().unwrap_or_else(|| "default".to_string()),
+            enabled: p.enabled,
+        }
+    }).collect();
+
+    // Return config with populated providers
+    Ok(Config {
+        identifier: state.config.identifier.clone(),
+        version: state.config.version.clone(),
+        providers: provider_configs,
+        channels: state.config.channels.clone(),
+        tools: state.config.tools.clone(),
+        memory: state.config.memory.clone(),
+        security: state.config.security.clone(),
+    })
 }
 
 #[tauri::command]
@@ -152,12 +180,34 @@ pub async fn update_config(
     config: Config,
 ) -> Result<(), String> {
     let mut state = state.lock().await;
-    state.config = config;
-    
+
+    // Update config
+    state.config = Config {
+        identifier: config.identifier.clone(),
+        version: config.version.clone(),
+        providers: config.providers.clone(),
+        channels: config.channels.clone(),
+        tools: config.tools.clone(),
+        memory: config.memory.clone(),
+        security: config.security.clone(),
+    };
+
+    // Sync providers state
+    for provider_config in &config.providers {
+        if let Some(provider) = state.providers.iter_mut().find(|p| p.provider_type == provider_config.provider_type) {
+            provider.enabled = provider_config.enabled;
+            provider.api_key_set = provider_config.api_key.is_some() && !provider_config.api_key.as_ref().map(|k| k.is_empty()).unwrap_or(true);
+            // Update models if changed
+            if !provider_config.model.is_empty() {
+                provider.models = vec![provider_config.model.clone()];
+            }
+        }
+    }
+
     if let Some(handle) = &state.app_handle {
         let _ = handle.emit("config_updated", &state.config);
     }
-    
+
     info!("Configuration updated");
     Ok(())
 }
