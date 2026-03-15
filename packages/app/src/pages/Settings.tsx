@@ -1,145 +1,107 @@
 import { useState } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { useConfig } from '@/hooks/useTauri'
+import { useConfigStore } from '@/stores/config'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Switch } from '@/components/ui/switch'
+import { Label } from '@/components/ui/label'
+import { toast } from 'sonner'
 
 export function Settings() {
-  const { data: config, isLoading } = useConfig()
-  const [activeTab, setActiveTab] = useState<'general' | 'providers' | 'tools'>('general')
+  const { config, updateConfig, loading } = useConfigStore()
+  const [localConfig, setLocalConfig] = useState(config)
 
-  if (isLoading) {
-    return (
-      <div className="p-8">
-        <h1 className="text-4xl font-bold mb-4">Settings</h1>
-        <p className="text-muted-foreground">Loading...</p>
-      </div>
-    )
+  const handleSave = async () => {
+    try {
+      await updateConfig(localConfig!)
+      toast.success('Settings saved successfully')
+    } catch (err) {
+      toast.error('Failed to save settings')
+    }
   }
 
-  return (
-    <div className="p-8">
-      <h1 className="text-4xl font-bold mb-8">Settings</h1>
-      
-      <div className="flex gap-4 mb-6 border-b">
-        <button
-          onClick={() => setActiveTab('general')}
-          className={`px-4 py-2 ${
-            activeTab === 'general'
-              ? 'border-b-2 border-primary'
-              : 'text-muted-foreground'
-          }`}
-        >
-          General
-        </button>
-        <button
-          onClick={() => setActiveTab('providers')}
-          className={`px-4 py-2 ${
-            activeTab === 'providers'
-              ? 'border-b-2 border-primary'
-              : 'text-muted-foreground'
-          }`}
-        >
-          Providers
-        </button>
-        <button
-          onClick={() => setActiveTab('tools')}
-          className={`px-4 py-2 ${
-            activeTab === 'tools'
-              ? 'border-b-2 border-primary'
-              : 'text-muted-foreground'
-          }`}
-        >
-          Tools
-        </button>
-      </div>
+  if (!config) return null
 
-      <div className="space-y-6">
-        {activeTab === 'general' && <GeneralSettings config={config} />}
-        {activeTab === 'providers' && <ProvidersSettings config={config} />}
-        {activeTab === 'tools' && <ToolsSettings config={config} />}
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Application</CardTitle>
+          <CardDescription>General application settings</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label>Version</Label>
+            <div className="text-sm text-muted-foreground">{config.version}</div>
+          </div>
+          <div className="space-y-2">
+            <Label>Identifier</Label>
+            <div className="text-sm text-muted-foreground">{config.identifier}</div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Tools</CardTitle>
+          <CardDescription>Configure tool permissions</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <Label>Shell Commands</Label>
+              <p className="text-sm text-muted-foreground">Allow shell command execution</p>
+            </div>
+            <Switch
+              checked={config.tools.shell_enabled}
+              onCheckedChange={(checked) => 
+                setLocalConfig({ ...config, tools: { ...config.tools, shell_enabled: checked } })
+              }
+            />
+          </div>
+          <div className="flex items-center justify-between">
+            <div>
+              <Label>File Read</Label>
+              <p className="text-sm text-muted-foreground">Allow reading files</p>
+            </div>
+            <Switch
+              checked={config.tools.file_read_enabled}
+              onCheckedChange={(checked) => 
+                setLocalConfig({ ...config, tools: { ...config.tools, file_read_enabled: checked } })
+              }
+            />
+          </div>
+          <div className="flex items-center justify-between">
+            <div>
+              <Label>File Write</Label>
+              <p className="text-sm text-muted-foreground">Allow writing files</p>
+            </div>
+            <Switch
+              checked={config.tools.file_write_enabled}
+              onCheckedChange={(checked) => 
+                setLocalConfig({ ...config, tools: { ...config.tools, file_write_enabled: checked } })
+              }
+            />
+          </div>
+          <div className="flex items-center justify-between">
+            <div>
+              <Label>Browser Automation</Label>
+              <p className="text-sm text-muted-foreground">Allow browser automation</p>
+            </div>
+            <Switch
+              checked={config.tools.browser_enabled}
+              onCheckedChange={(checked) => 
+                setLocalConfig({ ...config, tools: { ...config.tools, browser_enabled: checked } })
+              }
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="flex justify-end">
+        <Button onClick={handleSave} disabled={loading}>
+          {loading ? 'Saving...' : 'Save Changes'}
+        </Button>
       </div>
     </div>
-  )
-}
-
-function GeneralSettings({ config }: { config?: unknown }) {
-  if (!config) return null
-  
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Application</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div>
-          <div className="text-sm font-medium">Version</div>
-          <div className="text-muted-foreground">
-            {(config as { version?: string }).version}
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
-
-function ProvidersSettings({ config }: { config?: unknown }) {
-  const providers = (config as { providers?: unknown[] })?.providers || []
-  
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>AI Providers</CardTitle>
-      </CardHeader>
-      <CardContent>
-        {providers.length === 0 ? (
-          <p className="text-muted-foreground">No providers configured</p>
-        ) : (
-          <ul className="space-y-2">
-            {providers.map((provider: unknown) => (
-              <li key={(provider as { name: string }).name} className="p-4 border rounded-lg">
-                <div className="font-medium">{(provider as { name: string }).name}</div>
-                <div className="text-sm text-muted-foreground">
-                  Type: {(provider as { provider_type?: string }).provider_type}
-                </div>
-                <div className="text-sm text-muted-foreground">
-                  Model: {(provider as { model?: string }).model}
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </CardContent>
-    </Card>
-  )
-}
-
-function ToolsSettings({ config }: { config?: unknown }) {
-  const tools = (config as { tools?: { shell_enabled?: boolean; file_read_enabled?: boolean; file_write_enabled?: boolean; browser_enabled?: boolean } }).tools
-  
-  if (!tools) return null
-  
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Tool Permissions</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-2">
-        <div className="flex items-center gap-2">
-          <div className={`h-2 w-2 rounded-full ${tools.shell_enabled ? 'bg-green-500' : 'bg-gray-500'}`} />
-          <span>Shell commands: {tools.shell_enabled ? 'Enabled' : 'Disabled'}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className={`h-2 w-2 rounded-full ${tools.file_read_enabled ? 'bg-green-500' : 'bg-gray-500'}`} />
-          <span>File read: {tools.file_read_enabled ? 'Enabled' : 'Disabled'}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className={`h-2 w-2 rounded-full ${tools.file_write_enabled ? 'bg-green-500' : 'bg-gray-500'}`} />
-          <span>File write: {tools.file_write_enabled ? 'Enabled' : 'Disabled'}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className={`h-2 w-2 rounded-full ${tools.browser_enabled ? 'bg-green-500' : 'bg-gray-500'}`} />
-          <span>Browser automation: {tools.browser_enabled ? 'Enabled' : 'Disabled'}</span>
-        </div>
-      </CardContent>
-    </Card>
   )
 }

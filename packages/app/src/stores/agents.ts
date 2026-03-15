@@ -10,10 +10,6 @@ export interface Agent {
   updated_at?: string
 }
 
-interface AgentInput {
-  name: string
-}
-
 interface AgentUpdate {
   name?: string
   enabled?: boolean

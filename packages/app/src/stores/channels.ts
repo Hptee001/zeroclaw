@@ -70,8 +70,8 @@ export const useChannelsStore = create<ChannelsState>((set) => ({
   },
 
   updateChannel: async (id: string, updates: Partial<Channel>) => {
-    const result = await invokeCommand<Channel>('update_channel', { id, updates })
-    if (!result.success || !result.data) {
+    const result = await invokeCommand<void>('update_channel', { id, updates })
+    if (!result.success) {
       throw new Error(result.error || 'Failed to update channel')
     }
     
@@ -80,8 +80,6 @@ export const useChannelsStore = create<ChannelsState>((set) => ({
         c.id === id ? { ...c, ...updates } : c
       ),
     }))
-    
-    return result.data
   },
 
   testChannel: async (id: string) => {

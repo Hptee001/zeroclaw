@@ -84,8 +84,8 @@ export const useCronStore = create<CronState>((set) => ({
   },
 
   updateJob: async (id: string, updates: Partial<CronJob>) => {
-    const result = await invokeCommand<CronJob>('update_cron_job', { id, updates })
-    if (!result.success || !result.data) {
+    const result = await invokeCommand<void>('update_cron_job', { id, updates })
+    if (!result.success) {
       throw new Error(result.error || 'Failed to update cron job')
     }
     
@@ -94,8 +94,6 @@ export const useCronStore = create<CronState>((set) => ({
         j.id === id ? { ...j, ...updates } : j
       ),
     }))
-    
-    return result.data
   },
 
   toggleJob: async (id: string, enabled: boolean) => {

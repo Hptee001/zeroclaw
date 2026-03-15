@@ -1,16 +1,6 @@
 import { create } from 'zustand'
 import { invokeCommand } from '@/lib/commands'
 
-export interface Config {
-  identifier: string
-  version: string
-  providers: ProviderConfig[]
-  channels: ChannelConfig[]
-  tools: ToolConfig
-  memory: MemoryConfig
-  security: SecurityConfig
-}
-
 export interface ProviderConfig {
   type: 'anthropic' | 'openai' | 'zhipu' | 'ollama' | 'openrouter' | 'gemini'
   name: string
@@ -46,17 +36,27 @@ export interface SecurityConfig {
   webhook_secret?: string
 }
 
+export interface Config {
+  identifier: string
+  version: string
+  providers: ProviderConfig[]
+  channels: ChannelConfig[]
+  tools: ToolConfig
+  memory: MemoryConfig
+  security: SecurityConfig
+}
+
 interface ConfigState {
   config: Config | null
   loading: boolean
   error: string | null
   fetchConfig: () => Promise<void>
-  updateConfig: (updates: Partial<Config>) => Promise<void>
+  updateConfig: (updates: Config) => Promise<void>
   updateProvider: (type: string, updates: Partial<ProviderConfig>) => Promise<void>
   updateTools: (updates: Partial<ToolConfig>) => Promise<void>
 }
 
-export const useConfigStore = create<ConfigState>((set) => ({
+export const useConfigStore = create<ConfigState>((set, get) => ({
   config: null,
   loading: false,
   error: null,
@@ -75,15 +75,13 @@ export const useConfigStore = create<ConfigState>((set) => ({
     }
   },
 
-  updateConfig: async (updates: Partial<Config>) => {
+  updateConfig: async (updates: Config) => {
     const result = await invokeCommand<void>('update_config', { config: updates })
     if (!result.success) {
       throw new Error(result.error || 'Failed to update config')
     }
     
-    set((state) => ({
-      config: state.config ? { ...state.config, ...updates } : null,
-    }))
+    set({ config: updates })
   },
 
   updateProvider: async (type: string, updates: Partial<ProviderConfig>) => {
@@ -94,7 +92,7 @@ export const useConfigStore = create<ConfigState>((set) => ({
     )
     
     await invokeCommand<void>('update_config', {
-      config: { providers: newProviders },
+      config: { ...state.config!, providers: newProviders },
     })
     
     set((state) => ({
@@ -113,7 +111,7 @@ export const useConfigStore = create<ConfigState>((set) => ({
     const newTools = { ...tools, ...updates }
     
     await invokeCommand<void>('update_config', {
-      config: { tools: newTools },
+      config: { ...state.config!, tools: newTools },
     })
     
     set((state) => ({

@@ -1,5 +1,4 @@
 import { create } from 'zustand'
-import { invokeCommand } from '@/lib/commands'
 
 interface SettingsState {
   theme: 'light' | 'dark' | 'system'
