@@ -41,6 +41,9 @@ impl Default for SidecarConfig {
                         .unwrap_or_else(|| PathBuf::from("/tmp/zeroclaw-desktop"))
                         .to_string_lossy()
                 ),
+                // Disable pairing requirement for development
+                // In production, users should pair via QR code
+                "--no-pairing".to_string(),
             ],
         }
     }
@@ -295,20 +298,20 @@ impl SidecarManager {
     async fn wait_for_ready(&mut self) -> Result<(), String> {
         info!("Waiting for gateway to be ready...");
 
-        for attempt in 0..30 {
+        for attempt in 0..60 {
             sleep(Duration::from_millis(500)).await;
 
-            // Try to connect to the gateway
-            let url = self.gateway_url();
-            match tokio_tungstenite::connect_async(&url).await {
+            // Try to connect to the gateway via WebSocket
+            let ws_url = self.gateway_url();
+            match tokio_tungstenite::connect_async(&ws_url).await {
                 Ok(_) => {
-                    info!("Gateway is ready!");
+                    info!("Gateway is ready! (attempt {})", attempt + 1);
                     self.ready = true;
                     return Ok(());
                 }
-                Err(e) => {
-                    if attempt % 5 == 0 {
-                        info!("Waiting for gateway... (attempt {}) - {}", attempt + 1, e);
+                Err(_) => {
+                    if attempt % 10 == 0 {
+                        info!("Waiting for gateway... (attempt {})", attempt + 1);
                     }
                 }
             }
