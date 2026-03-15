@@ -83,7 +83,7 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
     }
 
     try {
-      await invoke('update_config', { config: newConfig })
+      await invokeCommand('update_config', { config: newConfig })
       set({ config: newConfig })
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Failed to update config'

@@ -106,6 +106,7 @@ pub fn run() {
             commands::list_channels,
             commands::add_channel,
             commands::delete_channel,
+            commands::update_channel,
             commands::test_channel,
             // Providers
             commands::list_providers,

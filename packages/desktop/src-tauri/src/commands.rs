@@ -835,7 +835,41 @@ pub async fn delete_channel(
     let mut state = state.lock().await;
     let initial_len = state.channels.len();
     state.channels.retain(|c| c.id != id);
-    
+
+    if state.channels.len() == initial_len {
+        return Err("Channel not found".to_string());
+    }
+
+    info!("Channel deleted: {}", id);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn update_channel(
+    state: State<'_, Arc<Mutex<AppState>>>,
+    id: String,
+    updates: ChannelUpdate,
+) -> Result<Channel, String> {
+    let mut state = state.lock().await;
+
+    let channel = state.channels.iter_mut()
+        .find(|c| c.id == id)
+        .ok_or_else(|| "Channel not found".to_string())?;
+
+    if let Some(name) = updates.name {
+        channel.name = name;
+    }
+    if let Some(enabled) = updates.enabled {
+        channel.enabled = enabled;
+    }
+    if let Some(config) = updates.config {
+        channel.config = config;
+    }
+
+    info!("Channel updated: {}", id);
+    Ok(channel.clone())
+}
+
     if state.channels.len() < initial_len {
         info!("Channel deleted: {}", id);
         Ok(())
