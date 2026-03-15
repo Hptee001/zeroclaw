@@ -1,1 +1,31 @@
 @import "tailwindcss";
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.3);
+}
+
+/* Focus ring */
+.focus-ring {
+  outline: none;
+  box-shadow: 0 0 0 2px hsl(var(--ring));
+}
+
+/* Smooth transitions */
+.transition-theme {
+  transition: color 200ms;
+}
