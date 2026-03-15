@@ -10,6 +10,7 @@ import {
   Network,
   Puzzle,
   Clock,
+  Bot,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -72,11 +73,12 @@ export function Sidebar() {
 
   const navItems = [
     { to: '/', icon: <MessageSquare className="h-[18px] w-[18px]" />, label: 'Chat' },
-    { to: '/settings', icon: <Settings className="h-[18px] w-[18px]" />, label: 'Settings' },
-    { to: '/models', icon: <Cpu className="h-[18px] w-[18px]" />, label: 'Models' },
+    { to: '/agents', icon: <Bot className="h-[18px] w-[18px]" />, label: 'Agents' },
     { to: '/channels', icon: <Network className="h-[18px] w-[18px]" />, label: 'Channels' },
+    { to: '/models', icon: <Cpu className="h-[18px] w-[18px]" />, label: 'Models' },
     { to: '/tools', icon: <Puzzle className="h-[18px] w-[18px]" />, label: 'Tools' },
     { to: '/schedule', icon: <Clock className="h-[18px] w-[18px]" />, label: 'Schedule' },
+    { to: '/settings', icon: <Settings className="h-[18px] w-[18px]" />, label: 'Settings' },
   ]
 
   return (
