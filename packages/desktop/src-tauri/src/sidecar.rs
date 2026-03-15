@@ -219,78 +219,39 @@ impl SidecarManager {
             return Err(format!("Configured path does not exist: {:?}", path));
         }
 
-        // Try common locations, prioritizing the CLI over desktop app
-        let candidates: Vec<PathBuf> = vec![
-            // Development build - from workspace root (3 levels up from tauru src)
-            PathBuf::from("../../../target/debug/zeroclaw"),
-            // Alternative paths
-            PathBuf::from("../../target/debug/zeroclaw"),
-            PathBuf::from("target/debug/zeroclaw"),
-            PathBuf::from("target/release/zeroclaw"),
-            // Installation paths
-            PathBuf::from("/usr/local/bin/zeroclaw"),
-            PathBuf::from("/usr/bin/zeroclaw"),
-            // Home directory
-            home::home_dir()
-                .map(|h| h.join(".cargo/bin/zeroclaw"))
-                .unwrap_or_else(|| PathBuf::from("zeroclaw")),
-        ];
+        // Get current executable directory
+        let exe_dir = std::env::current_exe()
+            .ok()
+            .and_then(|p| p.parent().map(|p| p.to_path_buf()))
+            .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
 
-        for candidate in &candidates {
-            // Normalize the path for better comparison
-            let normalized = if candidate.is_absolute() {
-                candidate.clone()
-            } else {
-                std::env::current_dir()
-                    .unwrap_or_else(|_| PathBuf::from("."))
-                    .join(candidate)
-                    .canonicalize()
-                    .unwrap_or(candidate.clone())
-            };
+        // Try sibling binary (most common in dev and production)
+        let candidate = exe_dir.join("zeroclaw");
+        if candidate.exists() {
+            info!("Found zeroclaw binary at: {:?}", candidate);
+            return Ok(candidate);
+        }
 
-            // Check if file exists
-            if normalized.exists() {
-                info!("Found binary at: {:?}", normalized);
+        // Try PATH
+        if let Ok(path) = which::which("zeroclaw") {
+            info!("Found zeroclaw in PATH: {:?}", path);
+            return Ok(path);
+        }
 
-                // Verify it's the CLI, not the desktop app
-                match std::process::Command::new(&normalized)
-                    .arg("--help")
-                    .output()
-                {
-                    Ok(output) => {
-                        let help_text = String::from_utf8_lossy(&output.stdout);
-                        // Check for CLI indicators
-                        if help_text.contains("Usage: zeroclaw") || help_text.contains("Manage the gateway") {
-                            info!("Verified zeroclaw CLI binary at: {:?}", normalized);
-                            return Ok(normalized);
-                        } else if help_text.contains("Desktop") {
-                            warn!("Skipping desktop app binary at: {:?}", normalized);
-                        }
-                    }
-                    Err(e) => {
-                        warn!("Failed to execute {:?}: {}", normalized, e);
-                    }
-                }
-            } else {
-                log::trace!("Path does not exist: {:?}", candidate);
+        // Try cargo bin
+        if let Some(home) = home::home_dir() {
+            let cargo_bin = home.join(".cargo/bin/zeroclaw");
+            if cargo_bin.exists() {
+                info!("Found zeroclaw in cargo bin: {:?}", cargo_bin);
+                return Ok(cargo_bin);
             }
         }
 
-        // No valid binary found - provide helpful error
-        let current_dir = std::env::current_dir()
-            .map(|p| p.display().to_string())
-            .unwrap_or_else(|_| "<unknown>".to_string());
-
-        let candidate_strs: Vec<String> = candidates.iter()
-            .map(|p| p.display().to_string())
-            .collect();
-
         Err(format!(
-            "Could not find zeroclaw CLI binary.\n\
-             Current directory: {}\n\
-             Searched paths: {:?}\n\
+            "Could not find zeroclaw binary.\n\
+             Searched: {:?}, PATH, ~/.cargo/bin\n\
              Please build with: cargo build --bin zeroclaw",
-            current_dir, candidate_strs
+            candidate
         ))
     }
 
