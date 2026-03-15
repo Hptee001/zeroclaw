@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { invokeCommand } from '@/lib/commands'
+import { invoke } from '@tauri-apps/api/core'
 
 export interface ProviderConfig {
   type: 'anthropic' | 'openai' | 'zhipu' | 'ollama' | 'openrouter' | 'gemini'
@@ -62,31 +62,29 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
   fetchConfig: async () => {
     set({ loading: true, error: null })
     try {
-      const result = await invokeCommand<Config>('get_config')
-      if (result.success && result.data) {
-        set({ config: result.data, loading: false })
-      } else {
-        set({ error: result.error || 'Failed to fetch config', loading: false })
-      }
+      const config = await invoke<Config>('get_config')
+      set({ config, loading: false })
     } catch (err) {
-      set({ error: 'Failed to fetch config', loading: false })
+      const errorMsg = err instanceof Error ? err.message : 'Failed to fetch config'
+      set({ error: errorMsg, loading: false })
     }
   },
 
   updateConfig: async (updates: Partial<Config>) => {
     const state = get()
     if (!state.config) return
-    
+
     const newConfig: Config = {
       ...state.config,
       ...updates,
     }
-    
-    const result = await invokeCommand<void>('update_config', { config: newConfig })
-    if (!result.success) {
-      throw new Error(result.error || 'Failed to update config')
+
+    try {
+      await invoke('update_config', { config: newConfig })
+      set({ config: newConfig })
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Failed to update config'
+      throw new Error(errorMsg)
     }
-    
-    set({ config: newConfig })
   },
 }))
