@@ -51,9 +51,7 @@ interface ConfigState {
   loading: boolean
   error: string | null
   fetchConfig: () => Promise<void>
-  updateConfig: (updates: Config) => Promise<void>
-  updateProvider: (type: string, updates: Partial<ProviderConfig>) => Promise<void>
-  updateTools: (updates: Partial<ToolConfig>) => Promise<void>
+  updateConfig: (updates: Partial<Config>) => Promise<void>
 }
 
 export const useConfigStore = create<ConfigState>((set, get) => ({
@@ -75,50 +73,20 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
     }
   },
 
-  updateConfig: async (updates: Config) => {
-    const result = await invokeCommand<void>('update_config', { config: updates })
+  updateConfig: async (updates: Partial<Config>) => {
+    const state = get()
+    if (!state.config) return
+    
+    const newConfig: Config = {
+      ...state.config,
+      ...updates,
+    }
+    
+    const result = await invokeCommand<void>('update_config', { config: newConfig })
     if (!result.success) {
       throw new Error(result.error || 'Failed to update config')
     }
     
-    set({ config: updates })
-  },
-
-  updateProvider: async (type: string, updates: Partial<ProviderConfig>) => {
-    const state = get()
-    const providers = state.config?.providers || []
-    const newProviders = providers.map((p) => 
-      p.type === type ? { ...p, ...updates } : p
-    )
-    
-    await invokeCommand<void>('update_config', {
-      config: { ...state.config!, providers: newProviders },
-    })
-    
-    set((state) => ({
-      config: state.config ? { 
-        ...state.config, 
-        providers: newProviders 
-      } : null,
-    }))
-  },
-
-  updateTools: async (updates: Partial<ToolConfig>) => {
-    const state = get()
-    const tools = state.config?.tools
-    if (!tools) return
-    
-    const newTools = { ...tools, ...updates }
-    
-    await invokeCommand<void>('update_config', {
-      config: { ...state.config!, tools: newTools },
-    })
-    
-    set((state) => ({
-      config: state.config ? { 
-        ...state.config, 
-        tools: newTools 
-      } : null,
-    }))
+    set({ config: newConfig })
   },
 }))
