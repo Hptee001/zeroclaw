@@ -142,6 +142,7 @@ pub async fn restart_gateway(_state: State<'_, Arc<Mutex<AppState>>>) -> Result<
 #[tauri::command]
 pub fn get_config(state: State<'_, Arc<Mutex<AppState>>>) -> Result<Config, String> {
     let state = state.blocking_lock();
+    // Return default config if none is set
     Ok(state.config.clone())
 }
 

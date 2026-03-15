@@ -11,18 +11,39 @@ import { useConfigStore, type ProviderConfig } from '@/stores/config'
 import { cn } from '@/lib/utils'
 
 export function Settings() {
-  const { config, loading, fetchConfig, updateConfig } = useConfigStore()
+  const { config, loading, error, fetchConfig, updateConfig } = useConfigStore()
   const [activeTab, setActiveTab] = useState<'general' | 'providers' | 'tools'>('providers')
+  const [localProviders, setLocalProviders] = useState<ProviderConfig[]>([])
 
   useEffect(() => {
     void fetchConfig()
   }, [fetchConfig])
 
-  if (loading || !config) {
+  useEffect(() => {
+    if (config?.providers) {
+      setLocalProviders(config.providers)
+    }
+  }, [config])
+
+  // Show error if fetch fails
+  useEffect(() => {
+    if (error) {
+      toast.error(`Failed to load settings: ${error}`)
+    }
+  }, [error])
+
+  // Don't block on loading - show with available data
+  if (error && !config) {
     return (
-      <div className="p-8 flex items-center gap-4">
-        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" />
-        <p className="text-muted-foreground">Loading settings...</p>
+      <div className="p-8">
+        <Card className="border-red-500">
+          <CardContent className="pt-6">
+            <div className="text-center">
+              <p className="text-red-600 mb-4">Failed to load settings</p>
+              <Button onClick={() => void fetchConfig()}>Retry</Button>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     )
   }
@@ -58,15 +79,18 @@ export function Settings() {
       {/* Tab Content */}
       <div className="space-y-6">
         {activeTab === 'general' && (
-          <GeneralSettings config={config} onUpdate={updateConfig} />
+          <GeneralSettings config={config} onUpdate={updateConfig} loading={loading} />
         )}
 
         {activeTab === 'providers' && (
-          <ProvidersSettings config={config} onUpdate={updateConfig} />
+          <ProvidersSettings
+            providers={localProviders}
+            onSave={(providers) => updateConfig({ providers })}
+          />
         )}
 
         {activeTab === 'tools' && (
-          <ToolsSettings config={config} onUpdate={updateConfig} />
+          <ToolsSettings config={config} onUpdate={updateConfig} loading={loading} />
         )}
       </div>
     </div>
@@ -78,35 +102,35 @@ export function Settings() {
 // ============================================================================
 
 interface GeneralSettingsProps {
-  config: {
-    version: string
-    identifier: string
-  }
+  config: any
   onUpdate: (config: any) => Promise<void>
+  loading: boolean
 }
 
-function GeneralSettings({ config }: GeneralSettingsProps) {
+function GeneralSettings({ config, loading }: GeneralSettingsProps) {
+  if (loading && !config) {
+    return <div className="text-muted-foreground">Loading...</div>
+  }
+
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>About ZeroClaw</CardTitle>
-          <CardDescription>Application information</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <div className="text-sm text-muted-foreground">Version</div>
-              <div className="font-medium">{config.version}</div>
-            </div>
-            <div>
-              <div className="text-sm text-muted-foreground">Identifier</div>
-              <div className="font-medium">{config.identifier}</div>
-            </div>
+    <Card>
+      <CardHeader>
+        <CardTitle>About ZeroClaw</CardTitle>
+        <CardDescription>Application information</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <div className="text-sm text-muted-foreground">Version</div>
+            <div className="font-medium">{config?.version || 'Unknown'}</div>
           </div>
-        </CardContent>
-      </Card>
-    </div>
+          <div>
+            <div className="text-sm text-muted-foreground">Identifier</div>
+            <div className="font-medium">{config?.identifier || 'Unknown'}</div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   )
 }
 
@@ -115,21 +139,23 @@ function GeneralSettings({ config }: GeneralSettingsProps) {
 // ============================================================================
 
 interface ProvidersSettingsProps {
-  config: {
-    providers: ProviderConfig[]
-  }
-  onUpdate: (config: any) => Promise<void>
+  providers: ProviderConfig[]
+  onSave: (providers: ProviderConfig[]) => Promise<void>
 }
 
-function ProvidersSettings({ config, onUpdate }: ProvidersSettingsProps) {
-  const [localProviders, setLocalProviders] = useState<ProviderConfig[]>(config.providers)
+function ProvidersSettings({ providers, onSave }: ProvidersSettingsProps) {
+  const [localProviders, setLocalProviders] = useState<ProviderConfig[]>(providers || [])
   const [showApiKeys, setShowApiKeys] = useState<Record<string, boolean>>({})
   const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    setLocalProviders(providers || [])
+  }, [providers])
 
   const handleSave = async () => {
     setSaving(true)
     try {
-      await onUpdate({ ...config, providers: localProviders })
+      await onSave(localProviders)
       toast.success('Provider settings saved')
     } catch {
       toast.error('Failed to save provider settings')
@@ -162,7 +188,7 @@ function ProvidersSettings({ config, onUpdate }: ProvidersSettingsProps) {
 
       {/* Save Button */}
       <div className="flex justify-end gap-2 sticky bottom-0 bg-background py-4 border-t">
-        <Button variant="outline" onClick={() => setLocalProviders(config.providers)}>
+        <Button variant="outline" onClick={() => setLocalProviders(providers || [])}>
           <RotateCcw className="h-4 w-4 mr-2" />
           Reset
         </Button>
@@ -187,8 +213,6 @@ interface ProviderCardProps {
 }
 
 function ProviderCard({ provider, onUpdate, showApiKey, toggleApiKeyVisibility }: ProviderCardProps) {
-  const [isExpanded, setIsExpanded] = useState(false)
-
   const providerInfo = getProviderInfo(provider.type)
   const popularModels = getPopularModels(provider.type)
 
@@ -303,26 +327,6 @@ function ProviderCard({ provider, onUpdate, showApiKey, toggleApiKeyVisibility }
             </p>
           </div>
         )}
-
-        {/* Advanced Settings Toggle */}
-        <div className="pt-2 border-t">
-          <button
-            onClick={() => setIsExpanded(!isExpanded)}
-            className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-2"
-          >
-            <span className={cn('transition-transform', isExpanded && 'rotate-90')}>▶</span>
-            {isExpanded ? 'Hide' : 'Show'} Advanced Settings
-          </button>
-          
-          {isExpanded && (
-            <div className="mt-4 space-y-4 animate-in slide-in-from-top-2">
-              {/* Provider-specific settings can go here */}
-              <div className="p-3 rounded-lg bg-muted text-sm text-muted-foreground">
-                Advanced configuration options for {provider.name}
-              </div>
-            </div>
-          )}
-        </div>
       </CardContent>
     </Card>
   )
@@ -333,26 +337,31 @@ function ProviderCard({ provider, onUpdate, showApiKey, toggleApiKeyVisibility }
 // ============================================================================
 
 interface ToolsSettingsProps {
-  config: {
-    tools: {
-      shell_enabled: boolean
-      file_read_enabled: boolean
-      file_write_enabled: boolean
-      browser_enabled: boolean
-      allowed_commands: string[]
-    }
-  }
+  config: any
   onUpdate: (config: any) => Promise<void>
+  loading: boolean
 }
 
-function ToolsSettings({ config, onUpdate }: ToolsSettingsProps) {
-  const [localTools, setLocalTools] = useState(config.tools)
+function ToolsSettings({ config, onUpdate, loading }: ToolsSettingsProps) {
+  const [localTools, setLocalTools] = useState(config?.tools || {
+    shell_enabled: false,
+    file_read_enabled: false,
+    file_write_enabled: false,
+    browser_enabled: false,
+    allowed_commands: [],
+  })
   const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    if (config?.tools) {
+      setLocalTools(config.tools)
+    }
+  }, [config])
 
   const handleSave = async () => {
     setSaving(true)
     try {
-      await onUpdate({ ...config, tools: localTools })
+      await onUpdate({ tools: localTools })
       toast.success('Tool settings saved')
     } catch {
       toast.error('Failed to save tool settings')
@@ -361,7 +370,11 @@ function ToolsSettings({ config, onUpdate }: ToolsSettingsProps) {
   }
 
   const handleToggle = (tool: keyof typeof localTools, enabled: boolean) => {
-    setLocalTools((prev) => ({ ...prev, [tool]: enabled }))
+    setLocalTools((prev: any) => ({ ...prev, [tool]: enabled }))
+  }
+
+  if (loading && !config) {
+    return <div className="text-muted-foreground">Loading...</div>
   }
 
   return (
