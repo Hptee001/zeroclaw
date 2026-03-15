@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { invokeCommand } from '@/lib/commands'
+import { listen, UnlistenFn } from '@tauri-apps/api/event'
 
 export interface ChatSession {
   id: string
@@ -45,12 +46,14 @@ interface ChatState {
   sending: boolean
   error: string | null
   streamingMessage: Message | null
+  streamingContent: string
   fetchSessions: () => Promise<void>
   createSession: (name?: string, agentId?: string) => Promise<ChatSession>
   deleteSession: (id: string) => Promise<void>
   switchSession: (id: string) => Promise<void>
   sendMessage: (content: string) => Promise<void>
   clearError: () => void
+  setupEventListeners: () => Promise<UnlistenFn[]>
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -61,6 +64,46 @@ export const useChatStore = create<ChatState>((set, get) => ({
   sending: false,
   error: null,
   streamingMessage: null,
+  streamingContent: '',
+
+  setupEventListeners: async () => {
+    const unlistenFns: UnlistenFn[] = []
+
+    // Listen for stream chunks
+    const streamUnlisten = await listen<{chunk_type: string, content?: string}>('stream_chunk', (event) => {
+      const chunk = event.payload
+      if (chunk.chunk_type === 'text' && chunk.content) {
+        set((state) => ({
+          streamingContent: state.streamingContent + chunk.content,
+          streamingMessage: state.streamingMessage
+            ? { ...state.streamingMessage, content: state.streamingContent + chunk.content }
+            : null,
+        }))
+      } else if (chunk.chunk_type === 'done') {
+        // Streaming complete - the final message will be added via message_new event
+        set({ streamingContent: '', streamingMessage: null })
+      }
+    })
+    unlistenFns.push(streamUnlisten)
+
+    // Listen for new messages
+    const messageUnlisten = await listen<Message>('message_new', (event) => {
+      const message = event.payload
+      set((state) => {
+        // Avoid duplicate messages (optimistic updates)
+        if (state.messages.some(m => m.id === message.id)) {
+          return state
+        }
+        return {
+          messages: [...state.messages, message],
+          sending: false,
+        }
+      })
+    })
+    unlistenFns.push(messageUnlisten)
+
+    return unlistenFns
+  },
 
   fetchSessions: async () => {
     set({ loading: true, error: null })
@@ -77,19 +120,20 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   createSession: async (name?: string, agentId?: string) => {
-    const result = await invokeCommand<ChatSession>('create_session', { 
+    const result = await invokeCommand<ChatSession>('create_session', {
       name: name || 'New Chat',
-      agent_id: agentId 
+      agent_id: agentId
     })
     if (!result.success || !result.data) {
       throw new Error(result.error || 'Failed to create session')
     }
-    
+
     set((state) => ({
       sessions: [result.data!, ...state.sessions],
       currentSessionId: result.data!.id,
+      messages: [], // Clear messages for new session
     }))
-    
+
     return result.data
   },
 
@@ -98,21 +142,22 @@ export const useChatStore = create<ChatState>((set, get) => ({
     if (!result.success) {
       throw new Error(result.error || 'Failed to delete session')
     }
-    
+
     set((state) => {
       const newSessions = state.sessions.filter((s) => s.id !== id)
       return {
         sessions: newSessions,
-        currentSessionId: state.currentSessionId === id 
+        currentSessionId: state.currentSessionId === id
           ? (newSessions[0]?.id || null)
           : state.currentSessionId,
+        messages: state.currentSessionId === id ? [] : state.messages,
       }
     })
   },
 
   switchSession: async (id: string) => {
     set({ currentSessionId: id, loading: true })
-    
+
     const result = await invokeCommand<Message[]>('get_messages', { session_id: id })
     if (result.success && result.data) {
       set({ messages: result.data, loading: false })
@@ -123,11 +168,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   sendMessage: async (content: string) => {
     const { currentSessionId } = get()
+
     if (!currentSessionId) {
       throw new Error('No active session')
     }
 
-    set({ sending: true, error: null })
+    set({ sending: true, error: null, streamingContent: '', streamingMessage: null })
 
     // Add user message optimistically
     const userMessage: Message = {
@@ -145,7 +191,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     try {
       // Stream the response
       const result = await invokeCommand<void>('stream_response', {
-        session_id: currentSessionId,
+        sessionId: currentSessionId,
         prompt: content,
       })
 
@@ -153,9 +199,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
         throw new Error(result.error)
       }
     } catch (err) {
-      set({ 
+      set({
         error: err instanceof Error ? err.message : 'Failed to send message',
-        sending: false 
+        sending: false,
+        streamingContent: '',
+        streamingMessage: null,
       })
     }
   },

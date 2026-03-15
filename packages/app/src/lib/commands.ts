@@ -11,18 +11,27 @@ export interface CommandResponse<T> {
 
 /**
  * Invoke a Tauri command with proper error handling
+ * Tauri commands return Result<T, E> which auto-resolves to T or throws
  */
 export async function invokeCommand<T>(
   cmd: string,
   args: Record<string, unknown> = {}
 ): Promise<CommandResponse<T>> {
   try {
-    const result = await invoke<CommandResponse<T>>(cmd, args)
-    return result
+    const data = await invoke<T>(cmd, args)
+    return { success: true, data }
   } catch (error) {
+    let errorMessage = 'Unknown error'
+    if (error instanceof Error) {
+      errorMessage = error.message
+    } else if (typeof error === 'string') {
+      errorMessage = error
+    } else {
+      errorMessage = JSON.stringify(error)
+    }
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
+      error: errorMessage,
     }
   }
 }
@@ -66,35 +75,35 @@ export async function createSession(name: string) {
  * Get a specific session
  */
 export async function getSession(sessionId: string) {
-  return invokeCommand<unknown>('get_session', { session_id: sessionId })
+  return invokeCommand<unknown>('get_session', { sessionId })
 }
 
 /**
  * Delete a session
  */
 export async function deleteSession(sessionId: string) {
-  return invokeCommand<void>('delete_session', { session_id: sessionId })
+  return invokeCommand<void>('delete_session', { sessionId })
 }
 
 /**
  * Get messages for a session
  */
 export async function getMessages(sessionId: string) {
-  return invokeCommand<unknown[]>('get_messages', { session_id: sessionId })
+  return invokeCommand<unknown[]>('get_messages', { sessionId })
 }
 
 /**
  * Send a message
  */
 export async function sendMessage(sessionId: string, content: string) {
-  return invokeCommand<void>('send_message', { session_id: sessionId, content })
+  return invokeCommand<void>('send_message', { sessionId, content })
 }
 
 /**
  * Stream AI response
  */
 export async function streamResponse(sessionId: string, prompt: string) {
-  return invokeCommand<void>('stream_response', { session_id: sessionId, prompt })
+  return invokeCommand<void>('stream_response', { sessionId, prompt })
 }
 
 /**

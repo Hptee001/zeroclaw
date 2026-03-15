@@ -246,7 +246,7 @@ pub struct Config {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProviderConfig {
-    #[serde(rename = "type")]
+    #[serde(alias = "type", rename = "provider_type")]
     pub provider_type: String,
     pub name: String,
     pub api_key: Option<String>,

@@ -73,7 +73,9 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
 
   updateConfig: async (updates: Partial<Config>) => {
     const state = get()
-    if (!state.config) return
+    if (!state.config) {
+      throw new Error('No config loaded')
+    }
 
     const newConfig: Config = {
       ...state.config,
@@ -85,6 +87,7 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
       set({ config: newConfig })
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Failed to update config'
+      console.error('updateConfig error:', err)
       throw new Error(errorMsg)
     }
   },

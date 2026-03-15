@@ -16,23 +16,27 @@ export function Settings() {
   const [localProviders, setLocalProviders] = useState<ProviderConfig[]>([])
 
   useEffect(() => {
-    void fetchConfig()
+    fetchConfig().catch((err) => {
+      console.error('Failed to fetch config:', err)
+    })
   }, [fetchConfig])
 
   useEffect(() => {
     if (config?.providers) {
-      setLocalProviders(config.providers)
+      const convertedProviders = config.providers.map((p) => ({
+        ...p,
+        type: (p.provider_type as any) || p.type,
+      })) as ProviderConfig[]
+      setLocalProviders(convertedProviders)
     }
   }, [config])
 
-  // Show error if fetch fails
   useEffect(() => {
     if (error) {
       toast.error(`Failed to load settings: ${error}`)
     }
   }, [error])
 
-  // Don't block on loading - show with available data
   if (error && !config) {
     return (
       <div className="p-8">
@@ -40,7 +44,7 @@ export function Settings() {
           <CardContent className="pt-6">
             <div className="text-center">
               <p className="text-red-600 mb-4">Failed to load settings</p>
-              <Button onClick={() => void fetchConfig()}>Retry</Button>
+              <Button onClick={() => fetchConfig().catch(console.error)}>Retry</Button>
             </div>
           </CardContent>
         </Card>
@@ -50,7 +54,6 @@ export function Settings() {
 
   return (
     <div className="p-8">
-      {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-4xl font-bold mb-2">Settings</h1>
@@ -58,7 +61,6 @@ export function Settings() {
         </div>
       </div>
 
-      {/* Tabs */}
       <div className="flex gap-4 mb-6 border-b">
         {(['general', 'providers', 'tools'] as const).map((tab) => (
           <button
@@ -76,21 +78,20 @@ export function Settings() {
         ))}
       </div>
 
-      {/* Tab Content */}
       <div className="space-y-6">
         {activeTab === 'general' && (
-          <GeneralSettings config={config} onUpdate={updateConfig} loading={loading} />
+          <GeneralSettings config={config} loading={loading} />
         )}
 
         {activeTab === 'providers' && (
           <ProvidersSettings
             providers={localProviders}
-            onSave={(providers) => updateConfig({ providers })}
+            updateConfig={updateConfig}
           />
         )}
 
         {activeTab === 'tools' && (
-          <ToolsSettings config={config} onUpdate={updateConfig} loading={loading} />
+          <ToolsSettings config={config} updateConfig={updateConfig} loading={loading} />
         )}
       </div>
     </div>
@@ -103,7 +104,6 @@ export function Settings() {
 
 interface GeneralSettingsProps {
   config: any
-  onUpdate: (config: any) => Promise<void>
   loading: boolean
 }
 
@@ -135,15 +135,15 @@ function GeneralSettings({ config, loading }: GeneralSettingsProps) {
 }
 
 // ============================================================================
-// Providers Settings - Complete Implementation
+// Providers Settings
 // ============================================================================
 
 interface ProvidersSettingsProps {
   providers: ProviderConfig[]
-  onSave: (providers: ProviderConfig[]) => Promise<void>
+  updateConfig: (updates: any) => Promise<void>
 }
 
-function ProvidersSettings({ providers, onSave }: ProvidersSettingsProps) {
+function ProvidersSettings({ providers, updateConfig }: ProvidersSettingsProps) {
   const [localProviders, setLocalProviders] = useState<ProviderConfig[]>(providers || [])
   const [showApiKeys, setShowApiKeys] = useState<Record<string, boolean>>({})
   const [saving, setSaving] = useState(false)
@@ -152,21 +152,42 @@ function ProvidersSettings({ providers, onSave }: ProvidersSettingsProps) {
     setLocalProviders(providers || [])
   }, [providers])
 
-  const handleSave = async () => {
-    setSaving(true)
-    try {
-      await onSave(localProviders)
-      toast.success('Provider settings saved')
-    } catch {
-      toast.error('Failed to save provider settings')
-    }
-    setSaving(false)
-  }
-
   const updateProvider = (type: string, updates: Partial<ProviderConfig>) => {
     setLocalProviders((prev) =>
       prev.map((p) => (p.type === type ? { ...p, ...updates } : p))
     )
+  }
+
+  const sanitizeInput = (value: string, maxLength: number = 1000): string => {
+    let sanitized = value.replace(/[\n\t]/g, '').trim()
+    if (sanitized.length > maxLength) {
+      sanitized = sanitized.substring(0, maxLength)
+    }
+    return sanitized
+  }
+
+  const handleSave = async () => {
+    const sanitizedProviders = localProviders.map((p) => ({
+      ...p,
+      api_key: p.api_key ? sanitizeInput(p.api_key, 500) : undefined,
+      base_url: p.base_url ? sanitizeInput(p.base_url, 500) : undefined,
+      model: sanitizeInput(p.model, 200),
+    }))
+
+    setSaving(true)
+    try {
+      const normalizedProviders = sanitizedProviders.map(({ type, ...rest }) => ({
+        ...rest,
+        provider_type: type,
+      }))
+      await updateConfig({ providers: normalizedProviders })
+      toast.success('Provider settings saved')
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Unknown error'
+      toast.error(`Failed to save: ${msg}`)
+    } finally {
+      setSaving(false)
+    }
   }
 
   const toggleApiKeyVisibility = (type: string) => {
@@ -175,7 +196,6 @@ function ProvidersSettings({ providers, onSave }: ProvidersSettingsProps) {
 
   return (
     <div className="space-y-6">
-      {/* Provider Cards */}
       {localProviders.map((provider) => (
         <ProviderCard
           key={provider.type}
@@ -186,7 +206,6 @@ function ProvidersSettings({ providers, onSave }: ProvidersSettingsProps) {
         />
       ))}
 
-      {/* Save Button */}
       <div className="flex justify-end gap-2 sticky bottom-0 bg-background py-4 border-t">
         <Button variant="outline" onClick={() => setLocalProviders(providers || [])}>
           <RotateCcw className="h-4 w-4 mr-2" />
@@ -202,7 +221,7 @@ function ProvidersSettings({ providers, onSave }: ProvidersSettingsProps) {
 }
 
 // ============================================================================
-// Individual Provider Card
+// Provider Card
 // ============================================================================
 
 interface ProviderCardProps {
@@ -247,7 +266,6 @@ function ProviderCard({ provider, onUpdate, showApiKey, toggleApiKeyVisibility }
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* API Key */}
         <div className="space-y-2">
           <Label>API Key</Label>
           <div className="relative">
@@ -259,12 +277,7 @@ function ProviderCard({ provider, onUpdate, showApiKey, toggleApiKeyVisibility }
               className="pr-20"
             />
             <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 px-2"
-                onClick={toggleApiKeyVisibility}
-              >
+              <Button variant="ghost" size="sm" className="h-8 px-2" onClick={toggleApiKeyVisibility}>
                 {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </Button>
               {provider.api_key && provider.api_key.length > 0 && (
@@ -282,7 +295,6 @@ function ProviderCard({ provider, onUpdate, showApiKey, toggleApiKeyVisibility }
           )}
         </div>
 
-        {/* Model Selection */}
         <div className="space-y-2">
           <Label>Default Model</Label>
           <Input
@@ -290,8 +302,6 @@ function ProviderCard({ provider, onUpdate, showApiKey, toggleApiKeyVisibility }
             onChange={(e) => onUpdate(provider.type, { model: e.target.value })}
             placeholder={providerInfo.modelPlaceholder}
           />
-          
-          {/* Popular Models Quick Select */}
           {popularModels.length > 0 && (
             <div className="flex flex-wrap gap-2">
               {popularModels.map((model) => (
@@ -313,7 +323,6 @@ function ProviderCard({ provider, onUpdate, showApiKey, toggleApiKeyVisibility }
           )}
         </div>
 
-        {/* Base URL (for providers that support it) */}
         {providerInfo.supportsBaseUrl && (
           <div className="space-y-2">
             <Label>Base URL (Optional)</Label>
@@ -338,11 +347,11 @@ function ProviderCard({ provider, onUpdate, showApiKey, toggleApiKeyVisibility }
 
 interface ToolsSettingsProps {
   config: any
-  onUpdate: (config: any) => Promise<void>
+  updateConfig: (updates: any) => Promise<void>
   loading: boolean
 }
 
-function ToolsSettings({ config, onUpdate, loading }: ToolsSettingsProps) {
+function ToolsSettings({ config, updateConfig, loading }: ToolsSettingsProps) {
   const [localTools, setLocalTools] = useState(config?.tools || {
     shell_enabled: false,
     file_read_enabled: false,
@@ -361,12 +370,14 @@ function ToolsSettings({ config, onUpdate, loading }: ToolsSettingsProps) {
   const handleSave = async () => {
     setSaving(true)
     try {
-      await onUpdate({ tools: localTools })
+      await updateConfig({ tools: localTools })
       toast.success('Tool settings saved')
-    } catch {
-      toast.error('Failed to save tool settings')
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Unknown error'
+      toast.error(`Failed to save: ${msg}`)
+    } finally {
+      setSaving(false)
     }
-    setSaving(false)
   }
 
   const handleToggle = (tool: keyof typeof localTools, enabled: boolean) => {
@@ -386,10 +397,10 @@ function ToolsSettings({ config, onUpdate, loading }: ToolsSettingsProps) {
         </CardHeader>
         <CardContent className="space-y-4">
           {[
-            { key: 'shell_enabled', label: 'Shell Commands', icon: '💻', desc: 'Execute system commands and scripts' },
-            { key: 'file_read_enabled', label: 'File Read', icon: '📖', desc: 'Read files from the filesystem' },
+            { key: 'shell_enabled', label: 'Shell Commands', icon: '💻', desc: 'Execute system commands' },
+            { key: 'file_read_enabled', label: 'File Read', icon: '📖', desc: 'Read files from filesystem' },
             { key: 'file_write_enabled', label: 'File Write', icon: '✏️', desc: 'Create and modify files' },
-            { key: 'browser_enabled', label: 'Browser Automation', icon: '🌐', desc: 'Control web browser for web tasks' },
+            { key: 'browser_enabled', label: 'Browser Automation', icon: '🌐', desc: 'Control web browser' },
           ].map((tool) => (
             <div key={tool.key} className="flex items-center justify-between p-4 rounded-lg border">
               <div className="flex items-center gap-3">
@@ -417,7 +428,6 @@ function ToolsSettings({ config, onUpdate, loading }: ToolsSettingsProps) {
         </Button>
       </div>
 
-      {/* Security Warning */}
       <Card className="border-yellow-500 bg-yellow-50 dark:bg-yellow-950/20">
         <CardContent className="pt-6">
           <div className="flex items-start gap-3">
@@ -430,8 +440,7 @@ function ToolsSettings({ config, onUpdate, loading }: ToolsSettingsProps) {
               </div>
               <div className="text-sm text-yellow-700 dark:text-yellow-300 mt-1">
                 Enabling shell commands and file operations gives the AI assistant 
-                significant system access. Only enable these features in trusted 
-                environments.
+                significant system access. Only enable in trusted environments.
               </div>
             </div>
           </div>
@@ -442,7 +451,7 @@ function ToolsSettings({ config, onUpdate, loading }: ToolsSettingsProps) {
 }
 
 // ============================================================================
-// Provider Info Helpers
+// Helpers
 // ============================================================================
 
 function getProviderInfo(type: string) {
@@ -508,43 +517,12 @@ function getProviderInfo(type: string) {
 
 function getPopularModels(type: string): string[] {
   const models: Record<string, string[]> = {
-    openrouter: [
-      'anthropic/claude-3.5-sonnet',
-      'anthropic/claude-3-opus',
-      'openai/gpt-4-turbo',
-      'openai/gpt-4',
-      'google/gemini-pro-1.5',
-      'meta-llama/llama-3-70b-instruct',
-    ],
-    anthropic: [
-      'claude-sonnet-4-5-20250929',
-      'claude-opus-4-5-20250929',
-      'claude-3-5-sonnet-20241022',
-      'claude-3-opus-20240229',
-    ],
-    openai: [
-      'gpt-4',
-      'gpt-4-turbo',
-      'gpt-4o',
-      'gpt-3.5-turbo',
-    ],
-    gemini: [
-      'gemini-pro',
-      'gemini-1.5-pro',
-      'gemini-1.5-flash',
-    ],
-    ollama: [
-      'llama2',
-      'llama3',
-      'mistral',
-      'codellama',
-      'gemma',
-    ],
-    zhipu: [
-      'glm-4',
-      'glm-4-flash',
-      'glm-3-turbo',
-    ],
+    openrouter: ['anthropic/claude-3.5-sonnet', 'anthropic/claude-3-opus', 'openai/gpt-4-turbo', 'openai/gpt-4', 'google/gemini-pro-1.5'],
+    anthropic: ['claude-sonnet-4-5-20250929', 'claude-opus-4-5-20250929', 'claude-3-5-sonnet-20241022', 'claude-3-opus-20240229'],
+    openai: ['gpt-4', 'gpt-4-turbo', 'gpt-4o', 'gpt-3.5-turbo'],
+    gemini: ['gemini-pro', 'gemini-1.5-pro', 'gemini-1.5-flash'],
+    ollama: ['llama2', 'llama3', 'mistral', 'codellama', 'gemma'],
+    zhipu: ['glm-4', 'glm-4-flash', 'glm-3-turbo'],
   }
   return models[type] || []
 }

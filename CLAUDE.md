@@ -3,9 +3,16 @@
 ## Commands
 
 ```bash
+# Rust validation
 cargo fmt --all -- --check
 cargo clippy --all-targets -- -D warnings
 cargo test
+
+# Desktop app (pnpm workspace)
+pnpm install              # install dependencies
+pnpm --filter zeroclaw-app typecheck  # check TypeScript
+pnpm --filter zeroclaw-app build      # build frontend
+pnpm --filter zeroclaw-app dev        # dev server
 ```
 
 Full pre-PR validation (recommended):
@@ -15,6 +22,14 @@ Full pre-PR validation (recommended):
 ```
 
 Docs-only changes: run markdown lint and link-integrity checks. If touching bootstrap scripts: `bash -n install.sh`.
+
+## Package Manager
+
+**Use pnpm for all JavaScript/TypeScript packages** in the workspace (`packages/app`, `packages/desktop`, `packages/shared`).
+
+- Install: `pnpm install`
+- Add dependency: `pnpm add <package> --filter <package-name>`
+- Run script: `pnpm --filter <package-name> <script>`
 
 ## Project Snapshot
 
@@ -71,6 +86,7 @@ Branch/commit/PR rules:
 - Use conventional commit titles. Prefer small PRs (`size: XS/S/M`).
 - Follow `.github/pull_request_template.md` fully.
 - Never commit secrets, personal data, or real identity information (see `@docs/contributing/pr-discipline.md`).
+- **Do NOT add `Co-Authored-By` trailers to commits** — keep commit history clean and attributable to the actual author.
 
 ## Anti-Patterns
 
