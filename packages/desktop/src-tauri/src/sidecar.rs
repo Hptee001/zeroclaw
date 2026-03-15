@@ -26,15 +26,13 @@ impl Default for SidecarConfig {
     fn default() -> Self {
         Self {
             enabled: true,
-            auto_start: true, // Always auto-start
+            auto_start: true,
             path: None,
             args: vec![
                 "gateway".to_string(),
                 "start".to_string(),
                 "-p".to_string(),
                 "37373".to_string(),
-                // Use ZeroClaw's default config directory (not a custom one)
-                // This allows the desktop app to share config with the CLI
                 "--config-dir".to_string(),
                 format!(
                     "{}",
@@ -43,8 +41,6 @@ impl Default for SidecarConfig {
                         .unwrap_or_else(|| PathBuf::from("/tmp/zeroclaw-desktop"))
                         .to_string_lossy()
                 ),
-                // Allow gateway to start without API key (for development)
-                "--no-auth".to_string(),
             ],
         }
     }
@@ -318,7 +314,10 @@ impl SidecarManager {
             }
         }
 
-        Err("Gateway did not become ready in time".to_string())
+        // Gateway not ready, but continue anyway (desktop can work without gateway)
+        warn!("Gateway did not become ready, continuing without AI features");
+        self.ready = false;
+        Ok(())
     }
 }
 
