@@ -313,19 +313,55 @@ async fn save_provider_config_to_file(config: &Config) -> Result<(), String> {
             section_name
         ));
 
-        // Add API key
-        provider_sections.push_str(&format!("api_key = \"{}\"\n", escape_toml_string(&api_key)));
+        // Add name (use provider name or default)
+        let provider_name = if provider.name.is_empty() {
+            // Default names based on provider type
+            match section_name {
+                "zhipu" => "Zhipu",
+                "openrouter" => "OpenRouter",
+                "anthropic" => "Anthropic",
+                "openai" => "OpenAI",
+                "google" => "Google",
+                "ollama" => "Ollama",
+                _ => &provider.provider_type,
+            }
+        } else {
+            &provider.name
+        };
+        provider_sections.push_str(&format!("name = \"{}\"\n", escape_toml_string(provider_name)));
 
         // Add base_url if provided
         if let Some(base_url) = &provider.base_url {
             if !base_url.is_empty() {
                 provider_sections.push_str(&format!("base_url = \"{}\"\n", escape_toml_string(base_url)));
             }
+        } else {
+            // Add default base URLs
+            let default_base_url = match section_name {
+                "zhipu" => Some("https://open.bigmodel.cn/api/paas/v4"),
+                "anthropic" => Some("https://api.anthropic.com"),
+                "openai" => Some("https://api.openai.com/v1"),
+                "google" => Some("https://generativelanguage.googleapis.com"),
+                _ => None,
+            };
+            if let Some(url) = default_base_url {
+                provider_sections.push_str(&format!("base_url = \"{}\"\n", url));
+            }
         }
 
-        // Add name for openrouter
-        if section_name == "openrouter" {
-            provider_sections.push_str("name = \"OpenRouter\"\n");
+        // Add API key
+        provider_sections.push_str(&format!("api_key = \"{}\"\n", escape_toml_string(&api_key)));
+
+        // Add models if available
+        if !provider.models.is_empty() {
+            provider_sections.push_str("models = [");
+            for (i, model) in provider.models.iter().enumerate() {
+                if i > 0 {
+                    provider_sections.push_str(", ");
+                }
+                provider_sections.push_str(&format!("\"{}\"", escape_toml_string(model)));
+            }
+            provider_sections.push_str("]\n");
         }
     }
 
