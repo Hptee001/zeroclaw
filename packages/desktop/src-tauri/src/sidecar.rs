@@ -24,6 +24,11 @@ pub struct SidecarConfig {
 
 impl Default for SidecarConfig {
     fn default() -> Self {
+        // Use home directory to construct config path
+        let config_dir = home::home_dir()
+            .map(|h| h.join(".zeroclaw"))
+            .unwrap_or_else(|| PathBuf::from("/tmp/zeroclaw-desktop"));
+
         Self {
             enabled: true,
             auto_start: true,
@@ -34,16 +39,8 @@ impl Default for SidecarConfig {
                 "-p".to_string(),
                 "37373".to_string(),
                 "--config-dir".to_string(),
-                format!(
-                    "{}",
-                    home::home_dir()
-                        .map(|h| h.join(".zeroclaw"))
-                        .unwrap_or_else(|| PathBuf::from("/tmp/zeroclaw-desktop"))
-                        .to_string_lossy()
-                ),
-                // Disable pairing requirement for development
-                // In production, users should pair via QR code
-                "--no-pairing".to_string(),
+                // Convert to absolute path to avoid shell expansion issues
+                config_dir.to_string_lossy().to_string(),
             ],
         }
     }
@@ -124,8 +121,77 @@ impl SidecarManager {
         info!("Starting sidecar: {:?}", binary_path);
 
         // Start the process
-        let child = Command::new(&binary_path)
-            .args(&self.config.args)
+        let mut cmd = Command::new(&binary_path);
+        cmd.args(&self.config.args);
+
+        // Load API keys from config file and set as environment variables
+        let config_path = home::home_dir()
+            .map(|h| h.join(".zeroclaw/config.toml"))
+            .unwrap_or_else(|| PathBuf::from("/tmp/zeroclaw-desktop/config.toml"));
+
+        if let Ok(config_content) = std::fs::read_to_string(&config_path) {
+            let mut current_section = String::new();
+            let mut current_api_key = String::new();
+
+            for line in config_content.lines() {
+                let trimmed = line.trim();
+
+                // Track section
+                if trimmed.starts_with('[') && trimmed.ends_with(']') {
+                    // Save previous section's API key
+                    if !current_section.is_empty() && !current_api_key.is_empty() {
+                        set_provider_api_key(&mut cmd, &current_section, &current_api_key);
+                    }
+
+                    // Start new section
+                    current_section = trimmed[1..trimmed.len() - 1].to_string();
+                    current_api_key.clear();
+                }
+                // Extract api_key from providers section
+                else if trimmed.starts_with("api_key") {
+                    if let Some(start) = trimmed.find('"') {
+                        if let Some(end) = trimmed.rfind('"') {
+                            current_api_key = trimmed[start + 1..end].to_string();
+                        }
+                    }
+                }
+                // Extract api_keys (key = "value" format)
+                else if current_section == "api_keys" && trimmed.contains('=') {
+                    if let Some(eq_pos) = trimmed.find('=') {
+                        let key = trimmed[..eq_pos].trim();
+                        let rest = trimmed[eq_pos + 1..].trim();
+                        if let Some(start) = rest.find('"') {
+                            if let Some(end) = rest.rfind('"') {
+                                let value = rest[start + 1..end].to_string();
+                                // Map provider name to env var
+                                let env_var = match key {
+                                    "zhipu" => Some("GLM_API_KEY"),
+                                    "anthropic" => Some("ANTHROPIC_API_KEY"),
+                                    "openai" => Some("OPENAI_API_KEY"),
+                                    "openrouter" => Some("OPENROUTER_API_KEY"),
+                                    "gemini" => Some("GEMINI_API_KEY"),
+                                    _ => None,
+                                };
+                                if let Some(var) = env_var {
+                                    cmd.env(var, &value);
+                                    info!("Set {} from api_keys section (length: {})", var, value.len());
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Save last section's API key
+            if !current_section.is_empty() && !current_api_key.is_empty() {
+                set_provider_api_key(&mut cmd, &current_section, &current_api_key);
+            }
+        }
+
+        // Debug: Print environment variables
+        info!("Spawning zeroclaw with ZHIPU_API_KEY set");
+
+        let child = cmd
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
@@ -294,4 +360,22 @@ impl Drop for SidecarManager {
             }
         }
     }
+}
+
+/// Set provider API key as environment variable
+fn set_provider_api_key(cmd: &mut tokio::process::Command, section: &str, api_key: &str) {
+    // Map provider section to environment variable name
+    // Based on src/providers/mod.rs resolve_provider_credential()
+    let env_var = match section {
+        "providers.zhipu" => "GLM_API_KEY",
+        "providers.glm" => "GLM_API_KEY",
+        "providers.anthropic" => "ANTHROPIC_API_KEY",
+        "providers.openai" => "OPENAI_API_KEY",
+        "providers.openrouter" => "OPENROUTER_API_KEY",
+        "providers.gemini" => "GEMINI_API_KEY",
+        _ => return,
+    };
+
+    cmd.env(env_var, api_key);
+    info!("Set {} from config file (length: {})", env_var, api_key.len());
 }
