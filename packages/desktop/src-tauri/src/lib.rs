@@ -10,6 +10,7 @@ use commands::AppState;
 use log::info;
 use sidecar::{SidecarConfig, SidecarManager};
 use std::sync::Arc;
+use tauri::Manager;
 use tokio::sync::Mutex;
 
 pub fn run() {
@@ -35,20 +36,49 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            commands::get_version,
+            // Gateway
+            commands::get_gateway_status,
+            commands::start_gateway,
+            commands::stop_gateway,
+            commands::restart_gateway,
+            // Config
             commands::get_config,
             commands::update_config,
+            // Sessions
             commands::list_sessions,
             commands::create_session,
-            commands::get_session,
             commands::delete_session,
+            // Messages
             commands::get_messages,
-            commands::send_message,
             commands::stream_response,
-            commands::execute_tool,
-            commands::start_sidecar,
-            commands::stop_sidecar,
-            commands::sidecar_status,
+            // Agents
+            commands::list_agents,
+            commands::create_agent,
+            commands::delete_agent,
+            commands::update_agent,
+            // Channels
+            commands::list_channels,
+            commands::add_channel,
+            commands::delete_channel,
+            commands::test_channel,
+            // Providers
+            commands::list_providers,
+            commands::update_provider,
+            commands::test_provider,
+            commands::get_usage,
+            // Skills
+            commands::list_skills,
+            commands::toggle_skill,
+            commands::install_skill,
+            commands::uninstall_skill,
+            // Cron
+            commands::list_cron_jobs,
+            commands::create_cron_job,
+            commands::delete_cron_job,
+            commands::update_cron_job,
+            commands::toggle_cron_job,
+            commands::run_cron_job,
+            commands::get_cron_job_history,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
