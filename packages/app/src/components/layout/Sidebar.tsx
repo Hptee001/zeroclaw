@@ -76,8 +76,8 @@ export function Sidebar() {
     { to: '/agents', icon: <Bot className="h-[18px] w-[18px]" />, label: 'Agents' },
     { to: '/channels', icon: <Network className="h-[18px] w-[18px]" />, label: 'Channels' },
     { to: '/models', icon: <Cpu className="h-[18px] w-[18px]" />, label: 'Models' },
-    { to: '/tools', icon: <Puzzle className="h-[18px] w-[18px]" />, label: 'Tools' },
-    { to: '/schedule', icon: <Clock className="h-[18px] w-[18px]" />, label: 'Schedule' },
+    { to: '/skills', icon: <Puzzle className="h-[18px] w-[18px]" />, label: 'Skills' },
+    { to: '/cron', icon: <Clock className="h-[18px] w-[18px]" />, label: 'Schedule' },
     { to: '/settings', icon: <Settings className="h-[18px] w-[18px]" />, label: 'Settings' },
   ]
 
