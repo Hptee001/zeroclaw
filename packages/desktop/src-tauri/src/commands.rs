@@ -352,16 +352,11 @@ async fn save_provider_config_to_file(config: &Config) -> Result<(), String> {
         // Add API key
         provider_sections.push_str(&format!("api_key = \"{}\"\n", escape_toml_string(&api_key)));
 
-        // Add models if available
-        if !provider.models.is_empty() {
-            provider_sections.push_str("models = [");
-            for (i, model) in provider.models.iter().enumerate() {
-                if i > 0 {
-                    provider_sections.push_str(", ");
-                }
-                provider_sections.push_str(&format!("\"{}\"", escape_toml_string(model)));
-            }
-            provider_sections.push_str("]\n");
+        // Add models - convert single model string to array
+        // ProviderConfig has 'model' (String), but config file needs 'models' (array)
+        if !provider.model.is_empty() {
+            provider_sections.push_str(&format!("models = [\"{}\"]\n", escape_toml_string(&provider.model)));
+            info!("  Added model: {}", provider.model);
         }
     }
 
