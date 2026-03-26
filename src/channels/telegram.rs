@@ -1518,6 +1518,9 @@ Allowlist Telegram username (without '@') or numeric user ID.",
         chat_id: &str,
         thread_id: Option<&str>,
     ) -> anyhow::Result<()> {
+        if message.trim().is_empty() {
+            return Ok(());
+        }
         let chunks = split_message_for_telegram(message);
 
         for (index, chunk) in chunks.iter().enumerate() {
@@ -2210,6 +2213,10 @@ impl Channel for TelegramChannel {
             }
         }
 
+        if text.is_empty() {
+            return Ok(());
+        }
+
         // Truncate to Telegram limit for mid-stream edits (UTF-8 safe)
         let display_text = if text.len() > TELEGRAM_MAX_MESSAGE_LENGTH {
             let mut end = 0;
@@ -2265,6 +2272,9 @@ impl Channel for TelegramChannel {
         message_id: &str,
         text: &str,
     ) -> anyhow::Result<()> {
+        if text.is_empty() {
+            return Ok(());
+        }
         let text = &strip_tool_call_tags(text);
         let (chat_id, thread_id) = Self::parse_reply_target(recipient);
 
@@ -4603,5 +4613,16 @@ mod tests {
         // The combination of marker_count > 0 && !supports_vision() means
         // the agent loop will return ProviderCapabilityError before calling
         // the provider, and the channel will send "⚠️ Error: ..." to the user.
+    }
+
+    #[tokio::test]
+    async fn test_send_text_chunks_empty_is_ok() {
+        let channel = TelegramChannel::new("fake_token".to_string(), vec!["*".to_string()], false);
+        // Should return Ok(()) immediately without making any HTTP requests
+        let result = channel.send_text_chunks("", "123", None).await;
+        assert!(result.is_ok());
+
+        let result_space = channel.send_text_chunks("   ", "123", None).await;
+        assert!(result_space.is_ok());
     }
 }
